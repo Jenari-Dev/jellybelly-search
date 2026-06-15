@@ -1,0 +1,65 @@
+name: Publish Plugin
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Get release version
+        id: version
+        run: echo "tag=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build
+        run: |
+          dotnet build JellyBellySearch.csproj \
+            --configuration Release \
+            -p:Version=${{ steps.version.outputs.tag }}.0
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp bin/Release/net8.0/Jellyfin.Plugin.JellyBellySearch.dll dist/
+          cd dist
+          zip -j ../jellybelly-search_${{ steps.version.outputs.tag }}.0.zip .
+
+      - name: Compute checksum
+        id: checksum
+        run: |
+          echo "md5=$(md5sum jellybelly-search_${{ steps.version.outputs.tag }}.0.zip | awk '{print $1}')" >> $GITHUB_OUTPUT
+
+      - name: Update build.yaml
+        run: |
+          VERSION="${{ steps.version.outputs.tag }}.0"
+          REPO="${{ github.repository }}"
+          URL="https://github.com/${REPO}/releases/download/v${{ steps.version.outputs.tag }}/jellybelly-search_${VERSION}.zip"
+          CHECKSUM="${{ steps.checksum.outputs.md5 }}"
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          sed -i "s|version:.*|version: \"${VERSION}\"|" build.yaml
+          sed -i "s|sourceUrl:.*|sourceUrl: \"${URL}\"|" build.yaml
+          sed -i "s|checksum:.*|checksum: \"${CHECKSUM}\"|" build.yaml
+          sed -i "s|timestamp:.*|timestamp: \"${DATE}\"|" build.yaml
+          cat build.yaml
+
+      - name: Upload zip to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "jellybelly-search_${{ steps.version.outputs.tag }}.0.zip"
+
+      - name: Commit updated build.yaml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add build.yaml
+          git commit -m "chore: update build.yaml for v${{ steps.version.outputs.tag }}" || true
+          git push origin HEAD:main || true

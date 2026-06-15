@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.JellyBellySearch</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.JellyBellySearch</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Version>1.0.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Jellyfin.Controller pulls in MediaBrowser.Common, MediaBrowser.Controller, and
+      MediaBrowser.Model — everything a plugin needs.
+      Target 10.10.7 (last 10.10 stable); ABI is compatible with 10.11.x.
+      Bump to 10.11.x once that package appears on NuGet.
+    -->
+    <PackageReference Include="Jellyfin.Controller" Version="10.10.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- All files under Web/ are embedded into the DLL as resources -->
+    <EmbeddedResource Include="Web\**\*" />
+  </ItemGroup>
+
+</Project>

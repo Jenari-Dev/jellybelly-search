@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>JellyBelly Search</title>
+</head>
+<body>
+<div data-role="page" class="page libraryPage noSecondaryNavPage pluginConfigurationPage">
+  <div class="content-primary">
+
+    <div class="verticalSection">
+      <h2 class="sectionTitle">JellyBelly Search</h2>
+    </div>
+
+    <!-- ── Search feature ───────────────────────────────────────────────── -->
+    <div class="verticalSection verticalSection-extrabottompadding">
+      <h3 class="sectionTitle">Search</h3>
+      <div class="checkboxContainer checkboxContainer-withDescription">
+        <label class="emby-checkbox-label">
+          <input id="enableSearch" type="checkbox" is="emby-checkbox" class="emby-checkbox">
+          <span class="checkboxButtonIcon"></span>
+          <span>Enable custom search page</span>
+        </label>
+        <div class="fieldDescription">
+          Replaces Jellyfin's default search with the full-width, Abyss-themed search UI.
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Other Libraries ──────────────────────────────────────────────── -->
+    <div class="verticalSection verticalSection-extrabottompadding">
+      <h3 class="sectionTitle">Other Libraries</h3>
+      <div class="checkboxContainer checkboxContainer-withDescription">
+        <label class="emby-checkbox-label">
+          <input id="enableLibraries" type="checkbox" is="emby-checkbox" class="emby-checkbox">
+          <span class="checkboxButtonIcon"></span>
+          <span>Enable remote library embedding</span>
+        </label>
+        <div class="fieldDescription">
+          Adds nav entries that open a remote Jellyfin server in an embedded iframe.
+        </div>
+      </div>
+
+      <div id="libraryList" style="margin-top:1.5em;"></div>
+
+      <button id="addLibraryBtn" is="emby-button" class="raised button-submit" type="button"
+              style="margin-top:1em;">
+        + Add Library
+      </button>
+    </div>
+
+    <!-- ── Save ─────────────────────────────────────────────────────────── -->
+    <div class="verticalSection">
+      <button id="saveBtn" is="emby-button" class="raised button-submit" type="button">
+        Save
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function () {
+  const PLUGIN_ID = 'B8FC5B3C-FD35-4B53-B68D-D48CA8B7EA4D';
+  let libraries = [];
+
+  // ── Render the library list ────────────────────────────────────────────
+  function renderLibraryList() {
+    const list = document.getElementById('libraryList');
+    list.innerHTML = '';
+
+    if (!libraries.length) {
+      list.innerHTML = '<p style="color:rgba(255,255,255,.4);font-size:.85rem;">No remote libraries configured.</p>';
+      return;
+    }
+
+    libraries.forEach(function (lib, idx) {
+      const div = document.createElement('div');
+      div.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;';
+
+      div.innerHTML =
+        '<input class="emby-input lib-name" placeholder="Display name (e.g. Friend\'s Library)" value="' + esc(lib.Name) + '" style="flex:1;min-width:160px;">' +
+        '<input class="emby-input lib-url"  placeholder="URL (e.g. https://jellyfin.example.com/web/index.html)" value="' + esc(lib.Url) + '" style="flex:2;min-width:240px;">' +
+        '<select class="emby-select lib-placement" style="flex:0 0 120px;">' +
+          '<option value="sidebar"' + (lib.Placement !== 'tab' ? ' selected' : '') + '>Sidebar</option>' +
+          '<option value="tab"'     + (lib.Placement === 'tab'  ? ' selected' : '') + '>Top tab</option>' +
+        '</select>' +
+        '<button class="emby-button lib-remove" type="button" style="flex:0;padding:6px 12px;background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);border-radius:6px;cursor:pointer;color:rgba(255,120,120,.9);">Remove</button>';
+
+      div.querySelector('.lib-remove').addEventListener('click', function () {
+        libraries.splice(idx, 1);
+        renderLibraryList();
+      });
+
+      div.querySelector('.lib-name').addEventListener('input', function () { libraries[idx].Name = this.value; });
+      div.querySelector('.lib-url').addEventListener('input',  function () { libraries[idx].Url  = this.value; });
+      div.querySelector('.lib-placement').addEventListener('change', function () { libraries[idx].Placement = this.value; });
+
+      list.appendChild(div);
+    });
+  }
+
+  function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+  }
+
+  // ── Load config ────────────────────────────────────────────────────────
+  document.addEventListener('viewshow', function () {
+    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+      document.getElementById('enableSearch').checked    = config.EnableSearch !== false;
+      document.getElementById('enableLibraries').checked = !!config.EnableOtherLibraries;
+      libraries = Array.isArray(config.RemoteLibraries) ? config.RemoteLibraries : [];
+      renderLibraryList();
+    });
+  });
+
+  // ── Add entry ──────────────────────────────────────────────────────────
+  document.getElementById('addLibraryBtn').addEventListener('click', function () {
+    libraries.push({ Name: '', Url: '', Placement: 'sidebar' });
+    renderLibraryList();
+  });
+
+  // ── Save ───────────────────────────────────────────────────────────────
+  document.getElementById('saveBtn').addEventListener('click', function () {
+    Dashboard.showLoadingMsg();
+
+    // Sync any in-flight edits from the DOM before saving
+    document.querySelectorAll('#libraryList > div').forEach(function (div, idx) {
+      if (libraries[idx]) {
+        libraries[idx].Name      = div.querySelector('.lib-name').value;
+        libraries[idx].Url       = div.querySelector('.lib-url').value;
+        libraries[idx].Placement = div.querySelector('.lib-placement').value;
+      }
+    });
+
+    ApiClient.getPluginConfiguration(PLUGIN_ID).then(function (config) {
+      config.EnableSearch        = document.getElementById('enableSearch').checked;
+      config.EnableOtherLibraries = document.getElementById('enableLibraries').checked;
+      config.RemoteLibraries     = libraries;
+      return ApiClient.updatePluginConfiguration(PLUGIN_ID, config);
+    }).then(function () {
+      Dashboard.hideLoadingMsg();
+      Dashboard.processPluginConfigurationUpdateResult();
+    }).catch(function () {
+      Dashboard.hideLoadingMsg();
+      Dashboard.alert('Save failed — check the Jellyfin log.');
+    });
+  });
+}());
+</script>
+</body>
+</html>

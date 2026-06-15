@@ -1,0 +1,8 @@
+---
+version: "1.0.0.0"
+targetAbi: "10.10.0.0"
+runtime: "dotnet"
+sourceUrl: "https://github.com/Jenari-Dev/jellybelly-search/releases/download/v1.0.0/jellybelly-search_1.0.0.0.zip"
+checksum: ""
+timestamp: "2026-01-01T00:00:00Z"
+changelog: "Initial release — custom search UI + remote library embedding."
